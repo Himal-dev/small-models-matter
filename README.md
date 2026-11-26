@@ -1,16 +1,20 @@
 # Small Models Matter
 
 An inspectable Deep Q-Network for Snake: **24 → 128 → 128 → 3**, with
-**20,099 parameters** (78.5 KiB at FP32). The dashboard shows the forward
-pass, every connection, and the arithmetic behind a temporal-difference
-target.
+**20,099 parameters** (78.5 KiB at FP32).
 
-## Interactive demo
+**[Open the interactive demo →](https://himal-dev.github.io/small-models-matter/)**
 
-The [GitHub Pages demo](https://himal-dev.github.io/small-models-matter/) computes Q-values in
-the browser from the released checkpoint and replays recorded board states.
-It displays the released training history. To see weights change during
-training, run the local watcher.
+[![Animated Snake replay with the three Q-values and the selected move highlighted](docs/assets/decision-replay.gif)](https://himal-dev.github.io/small-models-matter/)
+
+The demo runs in your browser with no install. Pause the replay, select a
+neuron to inspect its weights and bias, or toggle all **19,840 connections**.
+The browser computes Q-values from the released checkpoint as it replays
+recorded board states.
+
+## Run locally
+
+Use the local watcher to see weights change during training.
 
 Use Python 3.9 or later with a supported PyTorch build.
 
