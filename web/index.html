@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Small Models Matter - Network Watch</title>
+<link rel="stylesheet" href="./dashboard.css">
+</head>
+<body data-mode="live">
+
+<header>
+  <div class="title">
+    NETWORK WATCH
+    <span class="sub">Small Models Matter</span>
+  </div>
+  <div class="status">
+    <span id="dot" class="dot"></span>
+    <span id="statusText">connecting...</span>
+  </div>
+</header>
+
+<main>
+  <section class="replay-intro">
+    <span class="kicker">INTERACTIVE MODEL EXPLORER</span>
+    <h1>How a small network plays Snake</h1>
+    <p>Pause the replay, select a neuron, and follow the decision from 24
+      inputs to three possible moves. This page runs the forward pass in your
+      browser using a released checkpoint.</p>
+    <a href="#learningPanel">See how the model learned</a>
+  </section>
+  <section class="controls">
+    <label>
+      Input scenario
+      <select id="scenario">
+        <option value="auto" selected>Auto demo (live snake)</option>
+        <option value="start">Game start</option>
+        <option value="mid">Mid-game (scripted)</option>
+      </select>
+    </label>
+    <label>
+      Inspect
+      <select id="inspectLayer">
+        <option value="0" selected>Hidden 1</option>
+        <option value="1">Hidden 2</option>
+        <option value="2">Output</option>
+      </select>
+    </label>
+    <label>
+      neuron
+      <input id="inspectNeuron" type="number" min="0" max="127" value="0">
+    </label>
+    <label>
+      <input id="allConnections" type="checkbox">
+      All 19,840 connections
+    </label>
+    <button id="animate">Animate forward pass</button>
+    <button id="pause">Pause</button>
+    <div id="meta">waiting...</div>
+  </section>
+
+  <div class="layout">
+    <section class="viz">
+      <div class="vizhead">
+        <div>
+          <span class="kicker">FORWARD PASS</span>
+          <span class="viztitle">24 inputs &rarr; 128 &rarr; 128 &rarr; 3 Q-values</span>
+        </div>
+        <div class="legend">
+          <span><i class="sw sw-pos"></i>positive weight</span>
+          <span><i class="sw sw-neg"></i>negative weight</span>
+          <span><i class="sw sw-active"></i>active neuron</span>
+          <span><i class="sw sw-idle"></i>inactive</span>
+        </div>
+      </div>
+
+      <div class="svgwrap">
+        <svg id="net" viewBox="0 0 1300 960"
+             preserveAspectRatio="xMidYMin meet"
+             aria-label="Full neural network diagram"></svg>
+      </div>
+
+      <div id="selectionSummary" class="selectionSummary"></div>
+
+      <div class="inputListHead">
+        INPUT FEATURES
+        <span>values for the selected scenario</span>
+      </div>
+      <div id="inputList" class="inputList"></div>
+
+      <div class="explain">
+        <details open>
+          <summary>How to read this network</summary>
+          <ul>
+            <li>
+              Every <b>circle</b> is one neuron. Its colour shows how active it
+              is for the selected input: bright green is a strong positive
+              activation, gray means it is switched off.
+            </li>
+            <li>
+              Every <b>line</b> is a weight. Green is positive, red is negative;
+              thicker and brighter means a larger magnitude. To keep the picture
+              readable, only the two strongest incoming weights per neuron are
+               drawn in the background by default. Turn on <b>All 19,840
+               connections</b> for the dense view. Click a hidden or output
+               neuron to see its full equation and highlight its connections.
+            </li>
+            <li>
+              The <b>white ring</b> marks the neuron you are inspecting. Click
+              a circle or use the <b>Inspect</b> control above to change it. Its
+              incoming and outgoing weights are highlighted. The <b>yellow
+              outline</b> on an output neuron is the action the agent chose.
+            </li>
+            <li>
+              A hidden neuron computes
+              <code>z = &Sigma; w<sub>i</sub>x<sub>i</sub> + b</code>, then
+              <code>a = max(0, z)</code> (ReLU). The bias <code>b</code> shifts
+              the result; the weights <code>w</code> decide which inputs matter.
+            </li>
+            <li>
+              The three output circles are <b>Q-values</b>: the network's
+              estimate of future reward for going straight, turning right, or
+              turning left. The agent picks the largest one.
+            </li>
+            <li class="live-only">
+              Once the replay buffer has enough samples, Adam takes one
+              optimizer step per game step. The watcher reads checkpoints
+              saved once per episode.
+            </li>
+            <li>
+              The <b>Learning Story</b> panel at the bottom explains what the
+              weights are being changed for: the reward, the Bellman target,
+              the loss, and the update. The demo <b>TD error</b> illustrates
+              the calculation without updating the model.
+            </li>
+            <li class="live-only">
+              The <b>auto demo</b> board is a separate game played by the latest
+              checkpoint. It is there so you can watch the network respond to a
+              changing state; it is not the trainer's pygame window.
+            </li>
+          </ul>
+        </details>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel boardpanel">
+        <div class="panelhead">
+          <h2>DEMO BOARD</h2>
+          <span id="boardMeta" class="muted">-</span>
+        </div>
+        <canvas id="board" width="240" height="240"></canvas>
+        <div id="boardNote" class="hint">
+          Separate game played by the latest checkpoint.
+        </div>
+      </section>
+
+      <section class="panel" id="neuronPanel">
+        <div class="panelhead">
+          <h2>SELECTED NEURON</h2>
+          <span class="muted">click any circle</span>
+        </div>
+        <div id="neuronBody">waiting for data...</div>
+      </section>
+
+      <section class="panel" id="layerPanel">
+        <div class="panelhead">
+          <h2>WHOLE NETWORK</h2>
+          <span class="muted">per-layer weight statistics</span>
+        </div>
+        <div id="layerStats">waiting...</div>
+         <canvas class="live-only" id="layerChart" width="360" height="150"></canvas>
+         <div class="hint live-only">
+          Mean absolute weight per layer over episodes. It shows the whole
+          network changing, not just the selected neuron.
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <section class="panel learning" id="learningPanel">
+    <div class="panelhead">
+      <h2>THE LEARNING STORY</h2>
+      <span class="muted">why the weights move, and what they move toward</span>
+    </div>
+
+    <div class="story">
+      <div class="storyCard">
+        <h3>1 &middot; THE GOAL</h3>
+        <p>
+          The snake should <b>survive and eat food</b>. The score is the real
+          objective, but you cannot run backpropagation through &ldquo;score&rdquo;.
+          So every move pays a <b>reward</b>, and the network learns to predict
+          the <b>discounted future reward</b> of each action.
+        </p>
+      </div>
+
+      <div class="storyCard">
+        <h3>2 &middot; THE TARGET</h3>
+        <p>
+          Each transition <code>(s, a, r, s')</code> becomes a target with the
+          Bellman equation. This is the number the network is asked to match:
+        </p>
+        <pre>target = r + &gamma; &middot; max Q<sub>target</sub>(s', a')
+&gamma; = 0.90</pre>
+        <p>
+          If the game ended there is no future, so
+          <code>target = r</code>.
+        </p>
+      </div>
+
+      <div class="storyCard">
+        <h3>3 &middot; THE LOSS</h3>
+        <p>
+          The network predicts <code>Q(s, a)</code> for the action it took. The
+          loss is the squared gap between that prediction and the target,
+          averaged over a random batch of past moves:
+        </p>
+        <pre>L = (1/N) &Sigma; ( Q(s,a) &minus; target )&sup2;
+N = 128</pre>
+        <p>
+          The gap between <code>Q(s,a)</code> and the target is the
+          <b>TD error</b>. Its effect on each parameter depends on the
+          gradients through the network and the other samples in the batch.
+        </p>
+      </div>
+
+      <div class="storyCard">
+        <h3>4 &middot; THE UPDATE</h3>
+        <p>
+          Backpropagation computes <code>&part;L/&part;w</code> for all
+          <b>20,099</b> parameters. A simple gradient step would be:
+        </p>
+        <pre>w &larr; w &minus; lr &middot; &part;L/&part;w
+lr = 0.001</pre>
+        <p>
+          The trainer clips the gradient norm to 1.0 and uses Adam, which
+          scales the update using running estimates of the gradients.
+        </p>
+      </div>
+    </div>
+
+    <div class="learnLive">
+      <div class="learnBlock">
+        <h3>WHAT EACH EVENT PAYS</h3>
+        <div id="rewardTable">waiting...</div>
+      </div>
+
+      <div class="learnBlock">
+        <h3>ONE DEMO TRANSITION</h3>
+        <div id="tdLive" class="tdLive">waiting...</div>
+        <div class="hint">
+          The demo uses the same checkpoint for both predictions. The trainer
+          uses a separate target network and a batch of 128 transitions.
+        </div>
+      </div>
+
+      <div class="learnBlock">
+        <h3>THE KNOBS</h3>
+        <div id="hyper" class="hyper">waiting...</div>
+        <div class="hint">
+          &gamma; sets how far ahead the agent looks. Replay memory breaks the
+          correlation between consecutive moves. The target network is a frozen
+          copy, refreshed every 200 updates, so the target stops chasing itself.
+        </div>
+      </div>
+    </div>
+
+    <div class="learnCharts">
+      <div class="learnBlock">
+        <h3>THE PROXY &middot; LOSS OVER EPISODES</h3>
+        <canvas id="lossChart" width="520" height="150"></canvas>
+        <div class="hint">
+          Mean squared TD error. The target moves as the network changes, so
+          this can rise while the snake improves. Treat it as a stability
+          signal, not the goal.
+        </div>
+      </div>
+
+      <div class="learnBlock">
+        <h3>THE REAL GOAL &middot; SCORE OVER EPISODES</h3>
+        <canvas id="scoreChart" width="520" height="150"></canvas>
+        <div class="hint">
+          Episode score and running average. This is what we actually care about.
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="tooltip" class="tooltip"></div>
+
+<script src="./network.js"></script>
+<script src="./dashboard.js"></script>
+</body>
+</html>
